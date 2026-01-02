@@ -27,3 +27,90 @@ body {
   font-family: "Pretendard", "Noto Sans KR", "Malgun Gothic", "Apple SD Gothic Neo",
     sans-serif;
 }
+
+.preview-root {
+  background: #ffffff;
+  color: #0f172a;
+}
+
+.preview-divider {
+  border-color: #cbd5e1;
+}
+
+.preview-muted {
+  color: #64748b;
+}
+
+.preview-muted-strong {
+  color: #475569;
+}
+
+.preview-muted-soft {
+  color: #cbd5e1;
+}
+
+.preview-card {
+  background: #ffffff;
+  border-color: #cbd5e1;
+}
+
+.preview-stack {
+  display: grid;
+  gap: 16px;
+}
+
+.preview-panel {
+  border: 2px solid #cbd5e1;
+  border-radius: 0;
+  background: #ffffff;
+  padding: 16px;
+}
+
+.preview-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.preview-section-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 10px;
+}
+
+.preview-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.preview-grid-wide {
+  display: grid;
+  gap: 12px;
+}
+
+@media (min-width: 640px) {
+  .preview-grid,
+  .preview-grid-wide {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.preview-chip {
+  background: #ffffff;
+}
+
+.preview-dark {
+  background: #0f172a;
+  color: #ffffff;
+}
+
+.preview-accent {
+  color: #a7f3d0;
+}
+
+.preview-danger {
+  background: #f43f5e;
+  color: #ffffff;
+}

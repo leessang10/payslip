@@ -386,14 +386,67 @@ export default function Home() {
     }
   };
 
+  const cloneWithInlineStyles = (node: HTMLElement) => {
+    const clone = node.cloneNode(true) as HTMLElement;
+    const sourceElements = [node, ...Array.from(node.querySelectorAll("*"))];
+    const cloneElements = [clone, ...Array.from(clone.querySelectorAll("*"))];
+    const unsafePattern = /(lab|oklch|color-mix)/i;
+
+    sourceElements.forEach((sourceEl, index) => {
+      const targetEl = cloneElements[index] as HTMLElement | undefined;
+      if (!targetEl) return;
+      const computed = window.getComputedStyle(sourceEl);
+      if (computed.cssText && !unsafePattern.test(computed.cssText)) {
+        targetEl.style.cssText = computed.cssText;
+      } else {
+        for (const prop of Array.from(computed)) {
+          const value = computed.getPropertyValue(prop);
+          if (unsafePattern.test(value)) continue;
+          targetEl.style.setProperty(
+            prop,
+            value,
+            computed.getPropertyPriority(prop)
+          );
+        }
+      }
+
+      const safeColor = (value: string, fallback: string) =>
+        unsafePattern.test(value) ? fallback : value;
+
+      targetEl.style.color = safeColor(computed.color, "#0f172a");
+      targetEl.style.backgroundColor = safeColor(
+        computed.backgroundColor,
+        "transparent"
+      );
+      targetEl.style.borderColor = safeColor(
+        computed.borderColor,
+        "#e2e8f0"
+      );
+      targetEl.style.boxShadow = safeColor(computed.boxShadow, "none");
+    });
+
+    return clone;
+  };
+
   const handleExportPdf = async () => {
     if (!previewRef.current || isExporting) return;
     try {
       setIsExporting(true);
-      const canvas = await html2canvas(previewRef.current, {
+      const exportNode = cloneWithInlineStyles(previewRef.current);
+      const exportContainer = document.createElement("div");
+      exportContainer.style.position = "fixed";
+      exportContainer.style.left = "-99999px";
+      exportContainer.style.top = "0";
+      exportContainer.style.background = "#ffffff";
+      exportContainer.appendChild(exportNode);
+      document.body.appendChild(exportContainer);
+
+      const canvas = await html2canvas(exportNode, {
         scale: 2,
         backgroundColor: "#ffffff",
       });
+
+      document.body.removeChild(exportContainer);
       const imgData = canvas.toDataURL("image/png");
       const pdf = new jsPDF("p", "mm", "a4");
       const pdfWidth = 210;
@@ -432,11 +485,8 @@ export default function Home() {
     <div className="min-h-screen bg-transparent px-4 py-10 text-slate-900 sm:px-6 lg:px-10">
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-10">
         <header className="flex flex-col gap-4">
-          <span className="text-xs uppercase tracking-[0.4em] text-slate-500">
-            Payslip Studio
-          </span>
           <h1 className="text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
-            한국 급여명세서 PDF 생성기
+            대한민국 급여명세서 PDF 생성기
           </h1>
           <p className="max-w-2xl text-sm leading-relaxed text-slate-600">
             입력 폼에서 급여 정보를 채우면 오른쪽 미리보기에서 실시간 반영되고,
@@ -491,7 +541,7 @@ export default function Home() {
                         className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
                         value={form.companyName}
                         onChange={handleChange("companyName")}
-                        placeholder="상무스튜디오"
+                        placeholder="회사명을 입력해주세요."
                         required
                       />
                     </div>
@@ -523,13 +573,13 @@ export default function Home() {
 
                   <div className="grid gap-2">
                     <label className="text-xs font-semibold text-slate-500">
-                      담당자
+                      대표자
                     </label>
                     <input
                       className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
                       value={form.companyManager}
                       onChange={handleChange("companyManager")}
-                      placeholder="담당자 이름"
+                      placeholder="대표자 이름"
                     />
                   </div>
 
@@ -619,6 +669,66 @@ export default function Home() {
                     </div>
                   </div>
 
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-slate-100 bg-white/70 p-4">
+                <h3 className="text-sm font-semibold text-slate-700">근로 기간</h3>
+                <div className="mt-3 grid gap-4">
+                  <div className="grid gap-2">
+                    <label className="text-xs font-semibold text-slate-500">
+                      근로 기간 유형
+                    </label>
+                    <div className="flex gap-2">
+                      {([
+                        { value: "date", label: "일자별" },
+                        { value: "month", label: "월별" },
+                      ] as const).map((option) => (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() =>
+                            setForm((prev) => ({
+                              ...prev,
+                              workPeriodType: option.value,
+                            }))
+                          }
+                          className={`flex-1 rounded-xl border px-4 py-2 text-sm font-semibold transition ${
+                            form.workPeriodType === option.value
+                              ? "border-slate-900 bg-slate-900 text-white"
+                              : "border-slate-200 bg-white text-slate-600 hover:border-slate-400"
+                          }`}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="grid gap-2">
+                      <label className="text-xs font-semibold text-slate-500">
+                        근로 기간 시작
+                      </label>
+                      <input
+                        type={workPeriodInputType}
+                        className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                        value={form.workPeriodStart}
+                        onChange={handleChange("workPeriodStart")}
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <label className="text-xs font-semibold text-slate-500">
+                        근로 기간 종료
+                      </label>
+                      <input
+                        type={workPeriodInputType}
+                        className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                        value={form.workPeriodEnd}
+                        onChange={handleChange("workPeriodEnd")}
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -750,66 +860,6 @@ export default function Home() {
               </div>
 
               <div className="rounded-2xl border border-slate-100 bg-white/70 p-4">
-                <h3 className="text-sm font-semibold text-slate-700">근로 기간</h3>
-                <div className="mt-3 grid gap-4">
-                  <div className="grid gap-2">
-                    <label className="text-xs font-semibold text-slate-500">
-                      근로 기간 유형
-                    </label>
-                    <div className="flex gap-2">
-                      {([
-                        { value: "date", label: "일자별" },
-                        { value: "month", label: "월별" },
-                      ] as const).map((option) => (
-                        <button
-                          key={option.value}
-                          type="button"
-                          onClick={() =>
-                            setForm((prev) => ({
-                              ...prev,
-                              workPeriodType: option.value,
-                            }))
-                          }
-                          className={`flex-1 rounded-xl border px-4 py-2 text-sm font-semibold transition ${
-                            form.workPeriodType === option.value
-                              ? "border-slate-900 bg-slate-900 text-white"
-                              : "border-slate-200 bg-white text-slate-600 hover:border-slate-400"
-                          }`}
-                        >
-                          {option.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="grid gap-2">
-                      <label className="text-xs font-semibold text-slate-500">
-                        근로 기간 시작
-                      </label>
-                      <input
-                        type={workPeriodInputType}
-                        className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
-                        value={form.workPeriodStart}
-                        onChange={handleChange("workPeriodStart")}
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <label className="text-xs font-semibold text-slate-500">
-                        근로 기간 종료
-                      </label>
-                      <input
-                        type={workPeriodInputType}
-                        className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
-                        value={form.workPeriodEnd}
-                        onChange={handleChange("workPeriodEnd")}
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-slate-100 bg-white/70 p-4">
                 <h3 className="text-sm font-semibold text-slate-700">세금 정보</h3>
                 <div className="mt-3 grid gap-2">
                   <label className="text-xs font-semibold text-slate-500">
@@ -860,131 +910,171 @@ export default function Home() {
                 <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white p-4">
                   <div
                     ref={previewRef}
-                    className="mx-auto w-full rounded-2xl bg-white p-6 text-[13px] text-slate-900 shadow-[inset_0_0_0_1px_rgba(15,23,42,0.08)] sm:text-sm"
+                    className="preview-root mx-auto w-full rounded-2xl p-6 text-[13px] shadow-[inset_0_0_0_1px_rgba(15,23,42,0.08)] sm:text-sm"
                     style={{ maxWidth: "210mm", minHeight: "297mm" }}
                   >
-                <div className="flex items-start justify-between gap-4 border-b border-slate-200 pb-4">
-                  <div>
-                    <p className="text-xs font-semibold text-slate-500">급여명세서</p>
-                    <h3 className="mt-1 text-xl font-bold tracking-tight">
-                      {form.companyName || "회사명"}
-                    </h3>
-                    <p className="mt-1 text-xs text-slate-500">
-                      사업자번호: {form.companyRegNo || "-"}
-                    </p>
-                    <p className="text-xs text-slate-500">
-                      주소: {form.companyAddress || "-"}
-                    </p>
-                    <p className="text-xs text-slate-500">
-                      담당자: {form.companyManager || "-"}
-                    </p>
-                  </div>
-                  <div className="rounded-2xl bg-slate-900 px-4 py-3 text-right text-white">
-                    <p className="text-[11px] uppercase tracking-[0.3em] text-emerald-200">
-                      Net Pay
-                    </p>
-                    <p className="text-xl font-semibold">
-                      {formatCurrency(calculations.netPay)}원
-                    </p>
-                    <p className="text-[11px] text-slate-300">
-                      지급일 {form.payDate || "-"}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                  <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
-                    <p className="text-xs font-semibold text-slate-500">근로자</p>
-                    <p className="text-sm font-semibold">
-                      {form.workerName || "-"}
-                    </p>
-                    <p className="mt-1 text-xs text-slate-500">
-                      형태: {form.workerType === "employee" ? "임금근로자" : "프리랜서"}
-                    </p>
-                  </div>
-                  <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
-                    <p className="text-xs font-semibold text-slate-500">지급 정보</p>
-                    <p className="text-xs text-slate-500">
-                      {workPeriodLabel}: {form.workPeriodStart || "-"} ~{" "}
-                      {form.workPeriodEnd || "-"}
-                    </p>
-                    <p className="text-xs text-slate-500">
-                      은행: {form.bankName || "-"}
-                    </p>
-                    <p className="text-xs text-slate-500">
-                      계좌: {form.bankAccount || "-"}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="mt-6 grid gap-6 sm:grid-cols-2">
-                  <div>
-                    <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-                      <h4 className="text-sm font-semibold">지급 항목</h4>
-                      <span className="text-xs text-slate-500">합계</span>
-                    </div>
-                    <div className="mt-3 grid gap-2">
-                      {payItems.map((item) => (
-                        <div
-                          key={item.label}
-                          className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2"
-                        >
-                          <span className="text-xs text-slate-600">{item.label}</span>
-                          <span className="text-xs font-semibold">
-                            {formatCurrency(item.value)}원
-                          </span>
+                    <div className="preview-stack">
+                      <div className="preview-panel">
+                        <div className="preview-header">
+                          <div>
+                            <p className="preview-muted text-xs font-semibold">
+                              급여명세서
+                            </p>
+                            <h3 className="mt-1 text-xl font-bold tracking-tight">
+                              {form.companyName || "회사명"}
+                            </h3>
+                            <p className="preview-muted mt-1 text-xs">
+                              사업자번호: {form.companyRegNo || "-"}
+                            </p>
+                            <p className="preview-muted text-xs">
+                              주소: {form.companyAddress || "-"}
+                            </p>
+                            <p className="preview-muted text-xs">
+                              담당자: {form.companyManager || "-"}
+                            </p>
+                          </div>
+                          <div className="preview-dark rounded-2xl px-4 py-3 text-right">
+                            <p className="preview-accent text-[11px] uppercase tracking-[0.3em]">
+                              실수령액
+                            </p>
+                            <p className="text-xl font-semibold">
+                              {formatCurrency(calculations.netPay)}원
+                            </p>
+                            <p className="preview-muted-soft text-[11px]">
+                              지급일 {form.payDate || "-"}
+                            </p>
+                          </div>
                         </div>
-                      ))}
-                      <div className="flex items-center justify-between rounded-lg bg-slate-900 px-3 py-2 text-white">
-                        <span className="text-xs font-semibold">총지급</span>
-                        <span className="text-xs font-semibold">
-                          {formatCurrency(calculations.gross)}원
-                        </span>
+                      </div>
+
+                      <div className="preview-panel">
+                        <div className="preview-section-title">
+                          근로자 / 지급 정보
+                        </div>
+                        <div className="preview-grid">
+                          <div className="preview-card rounded-xl border p-3">
+                            <p className="preview-muted text-xs font-semibold">
+                              근로자
+                            </p>
+                            <p className="text-sm font-semibold">
+                              {form.workerName || "-"}
+                            </p>
+                            <p className="preview-muted mt-1 text-xs">
+                              형태:{" "}
+                              {form.workerType === "employee"
+                                ? "임금근로자"
+                                : "프리랜서"}
+                            </p>
+                          </div>
+                          <div className="preview-card rounded-xl border p-3">
+                            <p className="preview-muted text-xs font-semibold">
+                              지급 정보
+                            </p>
+                            <p className="preview-muted text-xs">
+                              {workPeriodLabel}: {form.workPeriodStart || "-"} ~{" "}
+                              {form.workPeriodEnd || "-"}
+                            </p>
+                            <p className="preview-muted text-xs">
+                              은행: {form.bankName || "-"}
+                            </p>
+                            <p className="preview-muted text-xs">
+                              계좌: {form.bankAccount || "-"}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="preview-panel">
+                        <div className="preview-section-title">지급 / 공제</div>
+                        <div className="preview-grid-wide">
+                          <div className="preview-card rounded-xl border p-3">
+                            <div className="preview-divider flex items-center justify-between border-b pb-2">
+                              <h4 className="text-sm font-semibold">지급 항목</h4>
+                              <span className="preview-muted text-xs">합계</span>
+                            </div>
+                            <div className="mt-3 grid gap-2">
+                              {payItems.map((item) => (
+                                <div
+                                  key={item.label}
+                                  className="preview-chip flex items-center justify-between rounded-lg px-3 py-2"
+                                >
+                                  <span className="preview-muted-strong text-xs">
+                                    {item.label}
+                                  </span>
+                                  <span className="text-xs font-semibold">
+                                    {formatCurrency(item.value)}원
+                                  </span>
+                                </div>
+                              ))}
+                              <div className="preview-dark flex items-center justify-between rounded-lg px-3 py-2">
+                                <span className="text-xs font-semibold">
+                                  총지급
+                                </span>
+                                <span className="text-xs font-semibold">
+                                  {formatCurrency(calculations.gross)}원
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="preview-card rounded-xl border p-3">
+                            <div className="preview-divider flex items-center justify-between border-b pb-2">
+                              <h4 className="text-sm font-semibold">공제 항목</h4>
+                              <span className="preview-muted text-xs">
+                                과세: {formatCurrency(calculations.taxable)}원
+                              </span>
+                            </div>
+                            <div className="mt-3 grid gap-2">
+                              {calculations.deductionLabels.map((item) => (
+                                <div
+                                  key={item.key}
+                                  className="preview-chip flex items-center justify-between rounded-lg px-3 py-2"
+                                >
+                                  <span className="preview-muted-strong text-xs">
+                                    {item.label}
+                                  </span>
+                                  <span className="text-xs font-semibold">
+                                    {formatCurrency(
+                                      calculations.deductions[item.key]
+                                    )}
+                                    원
+                                  </span>
+                                </div>
+                              ))}
+                              <div className="preview-danger flex items-center justify-between rounded-lg px-3 py-2">
+                                <span className="text-xs font-semibold">
+                                  총공제
+                                </span>
+                                <span className="text-xs font-semibold">
+                                  {formatCurrency(
+                                    calculations.totalDeductions
+                                  )}
+                                  원
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="preview-panel">
+                        <div className="preview-section-title">실지급액</div>
+                        <div className="preview-card rounded-xl border p-4">
+                          <div className="flex items-center justify-between text-sm font-semibold">
+                            <span>실지급액</span>
+                            <span>{formatCurrency(calculations.netPay)}원</span>
+                          </div>
+                          <p className="preview-muted mt-2 text-[11px] leading-relaxed">
+                            ※ 세금 및 4대보험은 2024년 기준 간이 계산값이며 실제 고지
+                            금액과 차이가 있을 수 있습니다.
+                          </p>
+                          {form.memo && (
+                            <p className="preview-muted mt-2 text-[11px]">
+                              메모: {form.memo}
+                            </p>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  <div>
-                    <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-                      <h4 className="text-sm font-semibold">공제 항목</h4>
-                      <span className="text-xs text-slate-500">
-                        과세: {formatCurrency(calculations.taxable)}원
-                      </span>
-                    </div>
-                    <div className="mt-3 grid gap-2">
-                      {calculations.deductionLabels.map((item) => (
-                        <div
-                          key={item.key}
-                          className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2"
-                        >
-                          <span className="text-xs text-slate-600">{item.label}</span>
-                          <span className="text-xs font-semibold">
-                            {formatCurrency(calculations.deductions[item.key])}원
-                          </span>
-                        </div>
-                      ))}
-                      <div className="flex items-center justify-between rounded-lg bg-rose-500 px-3 py-2 text-white">
-                        <span className="text-xs font-semibold">총공제</span>
-                        <span className="text-xs font-semibold">
-                          {formatCurrency(calculations.totalDeductions)}원
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-4">
-                  <div className="flex items-center justify-between text-sm font-semibold">
-                    <span>실지급액</span>
-                    <span>{formatCurrency(calculations.netPay)}원</span>
-                  </div>
-                  <p className="mt-2 text-[11px] leading-relaxed text-slate-500">
-                    ※ 세금 및 4대보험은 2024년 기준 간이 계산값이며 실제 고지 금액과
-                    차이가 있을 수 있습니다.
-                  </p>
-                  {form.memo && (
-                    <p className="mt-2 text-[11px] text-slate-500">메모: {form.memo}</p>
-                  )}
-                </div>
                   </div>
                 </div>
               </div>
