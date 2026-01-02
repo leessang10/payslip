@@ -100,6 +100,23 @@ const defaultForm: FormData = {
   memo: "",
 };
 
+const workerDefaults: WorkerProfile["data"] = {
+  workerType: defaultForm.workerType,
+  workerName: defaultForm.workerName,
+  payDate: defaultForm.payDate,
+  workPeriodType: defaultForm.workPeriodType,
+  workPeriodStart: defaultForm.workPeriodStart,
+  workPeriodEnd: defaultForm.workPeriodEnd,
+  bankName: defaultForm.bankName,
+  bankAccount: defaultForm.bankAccount,
+  basePay: defaultForm.basePay,
+  overtimePay: defaultForm.overtimePay,
+  bonusPay: defaultForm.bonusPay,
+  otherAllowances: defaultForm.otherAllowances,
+  nonTaxable: defaultForm.nonTaxable,
+  memo: defaultForm.memo,
+};
+
 const toNumber = (value: string) => Number(value.replace(/,/g, "")) || 0;
 
 const formatCurrency = (value: number) =>
@@ -257,7 +274,7 @@ export default function Home() {
         const parsed = JSON.parse(storedWorkers) as WorkerProfile[];
         const normalized = parsed.map((profile) => ({
           ...profile,
-          data: { ...defaultForm, ...profile.data },
+          data: { ...workerDefaults, ...profile.data },
         }));
         setWorkerProfiles(normalized);
       } catch {
