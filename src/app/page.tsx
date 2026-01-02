@@ -122,6 +122,115 @@ const calcEmployeeIncomeTax = (taxable: number) => {
   return taxable * 0.04 - 254000;
 };
 
+const pdfStyles = {
+  page: {
+    width: "210mm",
+    height: "297mm",
+    padding: "14mm",
+    backgroundColor: "#ffffff",
+    color: "#0f172a",
+    fontFamily:
+      '"Pretendard","Noto Sans KR","Malgun Gothic","Apple SD Gothic Neo",sans-serif',
+    fontSize: "11px",
+    lineHeight: 1.5,
+    boxSizing: "border-box",
+  },
+  header: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: "8mm",
+    borderBottom: "1px solid #e2e8f0",
+    paddingBottom: "7mm",
+  },
+  title: {
+    fontSize: "18px",
+    fontWeight: 700,
+  },
+  subtitle: {
+    fontSize: "11px",
+    color: "#64748b",
+  },
+  label: {
+    fontSize: "10px",
+    color: "#64748b",
+  },
+  gridThree: {
+    display: "grid",
+    gridTemplateColumns: "1fr",
+    gap: "3mm",
+    marginTop: "6mm",
+  },
+  card: {
+    border: "1px solid #e2e8f0",
+    borderRadius: "8px",
+    padding: "4mm",
+    backgroundColor: "#f8fafc",
+  },
+  cardTitle: {
+    fontSize: "10px",
+    fontWeight: 600,
+    color: "#64748b",
+  },
+  cardValue: {
+    fontSize: "12px",
+    fontWeight: 600,
+    marginTop: "2mm",
+  },
+  gridTwo: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gap: "6mm",
+    marginTop: "6mm",
+    alignItems: "stretch",
+  },
+  sectionTitle: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "baseline",
+    borderBottom: "1px solid #e2e8f0",
+    paddingBottom: "2mm",
+    marginBottom: "3mm",
+    fontWeight: 600,
+  },
+  row: {
+    display: "flex",
+    justifyContent: "space-between",
+    padding: "2mm 0",
+    borderBottom: "1px dashed #e2e8f0",
+  },
+  totalRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    padding: "2.5mm 3mm",
+    marginTop: "2mm",
+    borderRadius: "6px",
+    backgroundColor: "#0f172a",
+    color: "#ffffff",
+    fontWeight: 600,
+  },
+  totalRowAuto: {
+    marginTop: "auto",
+  },
+  totalRowDeduction: {
+    backgroundColor: "#e11d48",
+  },
+  summary: {
+    marginTop: "6mm",
+    padding: "4mm",
+    border: "1px solid #e2e8f0",
+    borderRadius: "8px",
+    backgroundColor: "#f8fafc",
+  },
+  memo: {
+    marginTop: "2mm",
+    maxHeight: "18mm",
+    overflow: "hidden",
+    whiteSpace: "pre-wrap" as const,
+    wordBreak: "break-word" as const,
+  },
+} as const;
+
 export default function Home() {
   const [form, setForm] = useState<FormData>(defaultForm);
   const [workerProfiles, setWorkerProfiles] = useState<WorkerProfile[]>([]);
@@ -138,7 +247,7 @@ export default function Home() {
   const [showBonus, setShowBonus] = useState(false);
   const [showOtherAllowances, setShowOtherAllowances] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
-  const previewRef = useRef<HTMLDivElement>(null);
+  const pdfTemplateRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -386,85 +495,19 @@ export default function Home() {
     }
   };
 
-  const cloneWithInlineStyles = (node: HTMLElement) => {
-    const clone = node.cloneNode(true) as HTMLElement;
-    const sourceElements = [node, ...Array.from(node.querySelectorAll("*"))];
-    const cloneElements = [clone, ...Array.from(clone.querySelectorAll("*"))];
-    const unsafePattern = /(lab|oklch|color-mix)/i;
-
-    sourceElements.forEach((sourceEl, index) => {
-      const targetEl = cloneElements[index] as HTMLElement | undefined;
-      if (!targetEl) return;
-      const computed = window.getComputedStyle(sourceEl);
-      if (computed.cssText && !unsafePattern.test(computed.cssText)) {
-        targetEl.style.cssText = computed.cssText;
-      } else {
-        for (const prop of Array.from(computed)) {
-          const value = computed.getPropertyValue(prop);
-          if (unsafePattern.test(value)) continue;
-          targetEl.style.setProperty(
-            prop,
-            value,
-            computed.getPropertyPriority(prop)
-          );
-        }
-      }
-
-      const safeColor = (value: string, fallback: string) =>
-        unsafePattern.test(value) ? fallback : value;
-
-      targetEl.style.color = safeColor(computed.color, "#0f172a");
-      targetEl.style.backgroundColor = safeColor(
-        computed.backgroundColor,
-        "transparent"
-      );
-      targetEl.style.borderColor = safeColor(
-        computed.borderColor,
-        "#e2e8f0"
-      );
-      targetEl.style.boxShadow = safeColor(computed.boxShadow, "none");
-    });
-
-    return clone;
-  };
-
   const handleExportPdf = async () => {
-    if (!previewRef.current || isExporting) return;
+    if (!pdfTemplateRef.current || isExporting) return;
     try {
       setIsExporting(true);
-      const exportNode = cloneWithInlineStyles(previewRef.current);
-      const exportContainer = document.createElement("div");
-      exportContainer.style.position = "fixed";
-      exportContainer.style.left = "-99999px";
-      exportContainer.style.top = "0";
-      exportContainer.style.background = "#ffffff";
-      exportContainer.appendChild(exportNode);
-      document.body.appendChild(exportContainer);
-
-      const canvas = await html2canvas(exportNode, {
+      const canvas = await html2canvas(pdfTemplateRef.current, {
         scale: 2,
         backgroundColor: "#ffffff",
       });
-
-      document.body.removeChild(exportContainer);
       const imgData = canvas.toDataURL("image/png");
       const pdf = new jsPDF("p", "mm", "a4");
       const pdfWidth = 210;
       const pdfHeight = 297;
-      const imgHeight = (canvas.height * pdfWidth) / canvas.width;
-
-      let heightLeft = imgHeight;
-      let position = 0;
-
-      pdf.addImage(imgData, "PNG", 0, position, pdfWidth, imgHeight);
-      heightLeft -= pdfHeight;
-
-      while (heightLeft > 0) {
-        position = heightLeft - imgHeight;
-        pdf.addPage();
-        pdf.addImage(imgData, "PNG", 0, position, pdfWidth, imgHeight);
-        heightLeft -= pdfHeight;
-      }
+      pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
 
       const fileName = `급여명세서_${form.workerName || "근로자"}_${
         form.payDate || today
@@ -909,176 +952,257 @@ export default function Home() {
 
                 <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white p-4">
                   <div
-                    ref={previewRef}
-                    className="preview-root mx-auto w-full rounded-2xl p-6 text-[13px] shadow-[inset_0_0_0_1px_rgba(15,23,42,0.08)] sm:text-sm"
+                    className="mx-auto w-full rounded-2xl bg-white p-6 text-[13px] text-slate-900 shadow-[inset_0_0_0_1px_rgba(15,23,42,0.08)] sm:text-sm"
                     style={{ maxWidth: "210mm", minHeight: "297mm" }}
                   >
-                    <div className="preview-stack">
-                      <div className="preview-panel">
-                        <div className="preview-header">
-                          <div>
-                            <p className="preview-muted text-xs font-semibold">
-                              급여명세서
-                            </p>
-                            <h3 className="mt-1 text-xl font-bold tracking-tight">
-                              {form.companyName || "회사명"}
-                            </h3>
-                            <p className="preview-muted mt-1 text-xs">
-                              사업자번호: {form.companyRegNo || "-"}
-                            </p>
-                            <p className="preview-muted text-xs">
-                              주소: {form.companyAddress || "-"}
-                            </p>
-                            <p className="preview-muted text-xs">
-                              담당자: {form.companyManager || "-"}
-                            </p>
-                          </div>
-                          <div className="preview-dark rounded-2xl px-4 py-3 text-right">
-                            <p className="preview-accent text-[11px] uppercase tracking-[0.3em]">
-                              실수령액
-                            </p>
-                            <p className="text-xl font-semibold">
-                              {formatCurrency(calculations.netPay)}원
-                            </p>
-                            <p className="preview-muted-soft text-[11px]">
-                              지급일 {form.payDate || "-"}
-                            </p>
-                          </div>
-                        </div>
+                    <div className="flex items-start justify-between gap-4 border-b border-slate-200 pb-4">
+                      <div>
+                        <p className="text-xs font-semibold text-slate-500">
+                          급여명세서
+                        </p>
+                        <h3 className="mt-1 text-lg font-semibold tracking-tight">
+                          {form.workerName || "근로자"}
+                        </h3>
+                        <p className="mt-1 text-xs text-slate-500">
+                          형태:{" "}
+                          {form.workerType === "employee"
+                            ? "임금근로자"
+                            : "프리랜서"}
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          회사: {form.companyName || "회사명"}
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          지급일 {form.payDate || "-"}
+                        </p>
                       </div>
+                    </div>
 
-                      <div className="preview-panel">
-                        <div className="preview-section-title">
-                          근로자 / 지급 정보
-                        </div>
-                        <div className="preview-grid">
-                          <div className="preview-card rounded-xl border p-3">
-                            <p className="preview-muted text-xs font-semibold">
-                              근로자
-                            </p>
-                            <p className="text-sm font-semibold">
-                              {form.workerName || "-"}
-                            </p>
-                            <p className="preview-muted mt-1 text-xs">
-                              형태:{" "}
-                              {form.workerType === "employee"
-                                ? "임금근로자"
-                                : "프리랜서"}
-                            </p>
-                          </div>
-                          <div className="preview-card rounded-xl border p-3">
-                            <p className="preview-muted text-xs font-semibold">
-                              지급 정보
-                            </p>
-                            <p className="preview-muted text-xs">
-                              {workPeriodLabel}: {form.workPeriodStart || "-"} ~{" "}
-                              {form.workPeriodEnd || "-"}
-                            </p>
-                            <p className="preview-muted text-xs">
-                              은행: {form.bankName || "-"}
-                            </p>
-                            <p className="preview-muted text-xs">
-                              계좌: {form.bankAccount || "-"}
-                            </p>
-                          </div>
-                        </div>
+                    <div className="mt-4 grid gap-4">
+                      <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+                        <p className="text-xs font-semibold text-slate-500">
+                          근로 정보
+                        </p>
+                        <p className="mt-1 text-sm font-semibold text-slate-900">
+                          {workPeriodLabel}: {form.workPeriodStart || "-"} ~{" "}
+                          {form.workPeriodEnd || "-"}
+                        </p>
                       </div>
+                      <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+                        <p className="text-xs font-semibold text-slate-500">
+                          지급 정보
+                        </p>
+                        <p className="mt-1 text-sm font-semibold text-slate-900">
+                          {form.bankName || "-"}
+                        </p>
+                        <p className="text-xs text-slate-600">
+                          {form.bankAccount || "-"}
+                        </p>
+                      </div>
+                      <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+                        <p className="text-xs font-semibold text-slate-500">
+                          회사 정보
+                        </p>
+                        <p className="mt-1 text-sm font-semibold">
+                          {form.companyName || "-"}
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          사업자번호: {form.companyRegNo || "-"}
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          주소: {form.companyAddress || "-"}
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          담당자: {form.companyManager || "-"}
+                        </p>
+                      </div>
+                    </div>
 
-                      <div className="preview-panel">
-                        <div className="preview-section-title">지급 / 공제</div>
-                        <div className="preview-grid-wide">
-                          <div className="preview-card rounded-xl border p-3">
-                            <div className="preview-divider flex items-center justify-between border-b pb-2">
-                              <h4 className="text-sm font-semibold">지급 항목</h4>
-                              <span className="preview-muted text-xs">합계</span>
-                            </div>
-                            <div className="mt-3 grid gap-2">
-                              {payItems.map((item) => (
-                                <div
-                                  key={item.label}
-                                  className="preview-chip flex items-center justify-between rounded-lg px-3 py-2"
-                                >
-                                  <span className="preview-muted-strong text-xs">
-                                    {item.label}
-                                  </span>
-                                  <span className="text-xs font-semibold">
-                                    {formatCurrency(item.value)}원
-                                  </span>
-                                </div>
-                              ))}
-                              <div className="preview-dark flex items-center justify-between rounded-lg px-3 py-2">
-                                <span className="text-xs font-semibold">
-                                  총지급
-                                </span>
-                                <span className="text-xs font-semibold">
-                                  {formatCurrency(calculations.gross)}원
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                          <div className="preview-card rounded-xl border p-3">
-                            <div className="preview-divider flex items-center justify-between border-b pb-2">
-                              <h4 className="text-sm font-semibold">공제 항목</h4>
-                              <span className="preview-muted text-xs">
-                                과세: {formatCurrency(calculations.taxable)}원
+                    <div className="mt-6 grid items-stretch gap-6 sm:grid-cols-2">
+                      <div className="flex h-full flex-col">
+                        <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                          <h4 className="text-sm font-semibold">지급 항목</h4>
+                          <span className="text-xs text-slate-500">합계</span>
+                        </div>
+                        <div className="mt-3 flex flex-1 flex-col gap-2">
+                          {payItems.map((item) => (
+                            <div
+                              key={item.label}
+                              className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2"
+                            >
+                              <span className="text-xs text-slate-600">
+                                {item.label}
+                              </span>
+                              <span className="text-xs font-semibold">
+                                {formatCurrency(item.value)}원
                               </span>
                             </div>
-                            <div className="mt-3 grid gap-2">
-                              {calculations.deductionLabels.map((item) => (
-                                <div
-                                  key={item.key}
-                                  className="preview-chip flex items-center justify-between rounded-lg px-3 py-2"
-                                >
-                                  <span className="preview-muted-strong text-xs">
-                                    {item.label}
-                                  </span>
-                                  <span className="text-xs font-semibold">
-                                    {formatCurrency(
-                                      calculations.deductions[item.key]
-                                    )}
-                                    원
-                                  </span>
-                                </div>
-                              ))}
-                              <div className="preview-danger flex items-center justify-between rounded-lg px-3 py-2">
-                                <span className="text-xs font-semibold">
-                                  총공제
-                                </span>
-                                <span className="text-xs font-semibold">
-                                  {formatCurrency(
-                                    calculations.totalDeductions
-                                  )}
-                                  원
-                                </span>
-                              </div>
+                          ))}
+                          <div className="mt-auto flex items-center justify-between rounded-lg bg-slate-900 px-3 py-2 text-white">
+                            <span className="text-xs font-semibold">총지급</span>
+                            <span className="text-xs font-semibold">
+                              {formatCurrency(calculations.gross)}원
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex h-full flex-col">
+                        <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                          <h4 className="text-sm font-semibold">공제 항목</h4>
+                          <span className="text-xs text-slate-500">
+                            과세: {formatCurrency(calculations.taxable)}원
+                          </span>
+                        </div>
+                        <div className="mt-3 flex flex-1 flex-col gap-2">
+                          {calculations.deductionLabels.map((item) => (
+                            <div
+                              key={item.key}
+                              className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2"
+                            >
+                              <span className="text-xs text-slate-600">
+                                {item.label}
+                              </span>
+                              <span className="text-xs font-semibold">
+                                {formatCurrency(
+                                  calculations.deductions[item.key]
+                                )}
+                                원
+                              </span>
                             </div>
+                          ))}
+                          <div className="mt-auto flex items-center justify-between rounded-lg bg-rose-500 px-3 py-2 text-white">
+                            <span className="text-xs font-semibold">총공제</span>
+                            <span className="text-xs font-semibold">
+                              {formatCurrency(calculations.totalDeductions)}원
+                            </span>
                           </div>
                         </div>
                       </div>
+                    </div>
 
-                      <div className="preview-panel">
-                        <div className="preview-section-title">실지급액</div>
-                        <div className="preview-card rounded-xl border p-4">
-                          <div className="flex items-center justify-between text-sm font-semibold">
-                            <span>실지급액</span>
-                            <span>{formatCurrency(calculations.netPay)}원</span>
-                          </div>
-                          <p className="preview-muted mt-2 text-[11px] leading-relaxed">
-                            ※ 세금 및 4대보험은 2024년 기준 간이 계산값이며 실제 고지
-                            금액과 차이가 있을 수 있습니다.
-                          </p>
-                          {form.memo && (
-                            <p className="preview-muted mt-2 text-[11px]">
-                              메모: {form.memo}
-                            </p>
-                          )}
-                        </div>
+                    <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                      <div className="flex items-center justify-between text-sm font-semibold">
+                        <span>실수령액</span>
+                        <span>{formatCurrency(calculations.netPay)}원</span>
                       </div>
+                      <p className="mt-2 text-[11px] leading-relaxed text-slate-500">
+                        ※ 세금 및 4대보험은 2024년 기준 간이 계산값이며 실제 고지
+                        금액과 차이가 있을 수 있습니다.
+                      </p>
+                      {form.memo && (
+                        <p className="mt-2 text-[11px] text-slate-500">
+                          메모: {form.memo}
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>
               </div>
             </section>
+          </div>
+        </div>
+      </div>
+      <div
+        aria-hidden="true"
+        style={{ position: "fixed", left: "-10000px", top: 0, width: "210mm" }}
+      >
+        <div ref={pdfTemplateRef} style={pdfStyles.page}>
+          <div style={pdfStyles.header}>
+            <div>
+              <p style={pdfStyles.label}>급여명세서</p>
+              <h3 style={pdfStyles.title}>{form.workerName || "근로자"}</h3>
+              <p style={pdfStyles.subtitle}>
+                형태: {form.workerType === "employee" ? "임금근로자" : "프리랜서"}
+              </p>
+              <p style={pdfStyles.subtitle}>
+                회사: {form.companyName || "회사명"}
+              </p>
+              <p style={pdfStyles.subtitle}>
+                지급일 {form.payDate || "-"}
+              </p>
+            </div>
+          </div>
+
+          <div style={pdfStyles.gridThree}>
+            <div style={pdfStyles.card}>
+              <p style={pdfStyles.cardTitle}>근로 정보</p>
+              <p style={pdfStyles.cardValue}>
+                {workPeriodLabel}: {form.workPeriodStart || "-"} ~{" "}
+                {form.workPeriodEnd || "-"}
+              </p>
+            </div>
+            <div style={pdfStyles.card}>
+              <p style={pdfStyles.cardTitle}>지급 정보</p>
+              <p style={pdfStyles.cardValue}>{form.bankName || "-"}</p>
+              <p style={pdfStyles.subtitle}>{form.bankAccount || "-"}</p>
+            </div>
+            <div style={pdfStyles.card}>
+              <p style={pdfStyles.cardTitle}>회사 정보</p>
+              <p style={pdfStyles.cardValue}>{form.companyName || "-"}</p>
+              <p style={pdfStyles.subtitle}>사업자번호: {form.companyRegNo || "-"}</p>
+              <p style={pdfStyles.subtitle}>주소: {form.companyAddress || "-"}</p>
+              <p style={pdfStyles.subtitle}>담당자: {form.companyManager || "-"}</p>
+            </div>
+          </div>
+
+          <div style={pdfStyles.gridTwo}>
+            <div style={{ display: "flex", flexDirection: "column" }}>
+              <div style={pdfStyles.sectionTitle}>
+                <span>지급 항목</span>
+                <span>합계</span>
+              </div>
+              {payItems.map((item) => (
+                <div key={item.label} style={pdfStyles.row}>
+                  <span>{item.label}</span>
+                  <span>{formatCurrency(item.value)}원</span>
+                </div>
+              ))}
+              <div style={{ ...pdfStyles.totalRow, ...pdfStyles.totalRowAuto }}>
+                <span>총지급</span>
+                <span>{formatCurrency(calculations.gross)}원</span>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column" }}>
+              <div style={pdfStyles.sectionTitle}>
+                <span>공제 항목</span>
+                <span>과세 {formatCurrency(calculations.taxable)}원</span>
+              </div>
+              {calculations.deductionLabels.map((item) => (
+                <div key={item.key} style={pdfStyles.row}>
+                  <span>{item.label}</span>
+                  <span>{formatCurrency(calculations.deductions[item.key])}원</span>
+                </div>
+              ))}
+              <div
+                style={{
+                  ...pdfStyles.totalRow,
+                  ...pdfStyles.totalRowDeduction,
+                  ...pdfStyles.totalRowAuto,
+                }}
+              >
+                <span>총공제</span>
+                <span>{formatCurrency(calculations.totalDeductions)}원</span>
+              </div>
+            </div>
+          </div>
+
+          <div style={pdfStyles.summary}>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span style={{ fontWeight: 600 }}>실수령액</span>
+              <span style={{ fontWeight: 700 }}>
+                {formatCurrency(calculations.netPay)}원
+              </span>
+            </div>
+            <p style={{ marginTop: "2mm", fontSize: "10px", color: "#64748b" }}>
+              ※ 세금 및 4대보험은 2024년 기준 간이 계산값이며 실제 고지 금액과
+              차이가 있을 수 있습니다.
+            </p>
+            {form.memo && (
+              <p style={{ ...pdfStyles.subtitle, ...pdfStyles.memo }}>
+                메모: {form.memo}
+              </p>
+            )}
           </div>
         </div>
       </div>
