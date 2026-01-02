@@ -43,16 +43,26 @@ type FormData = {
   memo: string;
 };
 
-type Profile = {
-  id: string;
-  label: string;
-  data: FormData;
-};
-
 type WorkerProfile = {
   id: string;
   label: string;
-  data: Pick<FormData, "workerType" | "workerName">;
+  data: Pick<
+    FormData,
+    | "workerType"
+    | "workerName"
+    | "payDate"
+    | "workPeriodType"
+    | "workPeriodStart"
+    | "workPeriodEnd"
+    | "bankName"
+    | "bankAccount"
+    | "basePay"
+    | "overtimePay"
+    | "bonusPay"
+    | "otherAllowances"
+    | "nonTaxable"
+    | "memo"
+  >;
 };
 
 type CompanyProfile = {
@@ -64,7 +74,6 @@ type CompanyProfile = {
   >;
 };
 
-const PROFILE_KEY = "payslip_profiles_v1";
 const WORKER_PROFILE_KEY = "payslip_worker_profiles_v1";
 const COMPANY_PROFILE_KEY = "payslip_company_profiles_v1";
 
@@ -96,15 +105,10 @@ const toNumber = (value: string) => Number(value.replace(/,/g, "")) || 0;
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat("ko-KR").format(Math.round(value));
 
-const getProfileLabel = (form: FormData, fallback: string) => {
-  if (form.workerName.trim()) {
-    return `${form.workerName}_${form.payDate || fallback}`;
-  }
-  return `근로자_${form.payDate || fallback}`;
+const getWorkerProfileLabel = (form: FormData, fallback: string) => {
+  const name = form.workerName.trim() || "근로자";
+  return `${name}_${form.payDate || fallback}`;
 };
-
-const getWorkerProfileLabel = (form: FormData) =>
-  form.workerName.trim() || "근로자";
 
 const getCompanyProfileLabel = (form: FormData) =>
   form.companyName.trim() || "회사";
@@ -120,15 +124,16 @@ const calcEmployeeIncomeTax = (taxable: number) => {
 
 export default function Home() {
   const [form, setForm] = useState<FormData>(defaultForm);
-  const [profiles, setProfiles] = useState<Profile[]>([]);
   const [workerProfiles, setWorkerProfiles] = useState<WorkerProfile[]>([]);
   const [companyProfiles, setCompanyProfiles] = useState<CompanyProfile[]>([]);
-  const [profileLabel, setProfileLabel] = useState("");
-  const [selectedProfileId, setSelectedProfileId] = useState("");
   const [workerProfileLabel, setWorkerProfileLabel] = useState("");
   const [selectedWorkerProfileId, setSelectedWorkerProfileId] = useState("");
   const [companyProfileLabel, setCompanyProfileLabel] = useState("");
   const [selectedCompanyProfileId, setSelectedCompanyProfileId] = useState("");
+  const [showCompanySaveModal, setShowCompanySaveModal] = useState(false);
+  const [showCompanyLoadModal, setShowCompanyLoadModal] = useState(false);
+  const [showWorkerLoadModal, setShowWorkerLoadModal] = useState(false);
+  const [showWorkerSaveModal, setShowWorkerSaveModal] = useState(false);
   const [showOvertime, setShowOvertime] = useState(false);
   const [showBonus, setShowBonus] = useState(false);
   const [showOtherAllowances, setShowOtherAllowances] = useState(false);
@@ -137,24 +142,15 @@ export default function Home() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const stored = window.localStorage.getItem(PROFILE_KEY);
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored) as Profile[];
-        const normalized = parsed.map((profile) => ({
-          ...profile,
-          data: { ...defaultForm, ...profile.data },
-        }));
-        setProfiles(normalized);
-      } catch {
-        setProfiles([]);
-      }
-    }
     const storedWorkers = window.localStorage.getItem(WORKER_PROFILE_KEY);
     if (storedWorkers) {
       try {
         const parsed = JSON.parse(storedWorkers) as WorkerProfile[];
-        setWorkerProfiles(parsed);
+        const normalized = parsed.map((profile) => ({
+          ...profile,
+          data: { ...defaultForm, ...profile.data },
+        }));
+        setWorkerProfiles(normalized);
       } catch {
         setWorkerProfiles([]);
       }
@@ -169,11 +165,6 @@ export default function Home() {
       }
     }
   }, []);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    window.localStorage.setItem(PROFILE_KEY, JSON.stringify(profiles));
-  }, [profiles]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -277,45 +268,21 @@ export default function Home() {
       setForm((prev) => ({ ...prev, [field]: event.target.value }));
     };
 
-  const handleSelectProfile = (event: ChangeEvent<HTMLSelectElement>) => {
-    const id = event.target.value;
-    setSelectedProfileId(id);
-    const profile = profiles.find((item) => item.id === id);
-    if (profile) {
-      setForm({ ...defaultForm, ...profile.data });
-    }
-  };
-
-  const handleSaveProfile = () => {
-    const label = profileLabel.trim() || getProfileLabel(form, today);
-    const id =
-      (typeof crypto !== "undefined" && crypto.randomUUID?.()) ||
-      String(Date.now());
-
-    const newProfile: Profile = {
-      id,
-      label,
-      data: { ...form },
-    };
-
-    setProfiles((prev) => [newProfile, ...prev]);
-    setProfileLabel("");
-    setSelectedProfileId(id);
-  };
-
-  const handleSelectWorkerProfile = (
-    event: ChangeEvent<HTMLSelectElement>
-  ) => {
-    const id = event.target.value;
+  const handleLoadWorkerProfile = (id: string) => {
     setSelectedWorkerProfileId(id);
     const profile = workerProfiles.find((item) => item.id === id);
     if (profile) {
       setForm((prev) => ({ ...prev, ...profile.data }));
+      setShowOvertime(toNumber(profile.data.overtimePay) > 0);
+      setShowBonus(toNumber(profile.data.bonusPay) > 0);
+      setShowOtherAllowances(toNumber(profile.data.otherAllowances) > 0);
     }
+    setShowWorkerLoadModal(false);
   };
 
   const handleSaveWorkerProfile = () => {
-    const label = workerProfileLabel.trim() || getWorkerProfileLabel(form);
+    const label =
+      workerProfileLabel.trim() || getWorkerProfileLabel(form, today);
     const id =
       (typeof crypto !== "undefined" && crypto.randomUUID?.()) ||
       String(Date.now());
@@ -326,20 +293,36 @@ export default function Home() {
       data: {
         workerType: form.workerType,
         workerName: form.workerName,
+        payDate: form.payDate,
+        workPeriodType: form.workPeriodType,
+        workPeriodStart: form.workPeriodStart,
+        workPeriodEnd: form.workPeriodEnd,
+        bankName: form.bankName,
+        bankAccount: form.bankAccount,
+        basePay: form.basePay,
+        overtimePay: form.overtimePay,
+        bonusPay: form.bonusPay,
+        otherAllowances: form.otherAllowances,
+        nonTaxable: form.nonTaxable,
+        memo: form.memo,
       },
     };
 
     setWorkerProfiles((prev) => [newProfile, ...prev]);
     setWorkerProfileLabel("");
     setSelectedWorkerProfileId(id);
+    setShowWorkerSaveModal(false);
   };
 
-  const handleDeleteWorkerProfile = () => {
-    if (!selectedWorkerProfileId) return;
+  const handleDeleteWorkerProfile = (id?: string) => {
+    const targetId = id ?? selectedWorkerProfileId;
+    if (!targetId) return;
     setWorkerProfiles((prev) =>
-      prev.filter((item) => item.id !== selectedWorkerProfileId)
+      prev.filter((item) => item.id !== targetId)
     );
-    setSelectedWorkerProfileId("");
+    if (selectedWorkerProfileId === targetId) {
+      setSelectedWorkerProfileId("");
+    }
   };
 
   const handleSelectCompanyProfile = (
@@ -354,10 +337,11 @@ export default function Home() {
   };
 
   const handleSaveCompanyProfile = () => {
+    const companyRegNo = form.companyRegNo.trim();
+    const companyName = form.companyName.trim();
+    if (!companyRegNo || !companyName) return;
     const label = companyProfileLabel.trim() || getCompanyProfileLabel(form);
-    const id =
-      (typeof crypto !== "undefined" && crypto.randomUUID?.()) ||
-      String(Date.now());
+    const id = companyRegNo;
 
     const newProfile: CompanyProfile = {
       id,
@@ -370,23 +354,36 @@ export default function Home() {
       },
     };
 
-    setCompanyProfiles((prev) => [newProfile, ...prev]);
+    setCompanyProfiles((prev) => {
+      const exists = prev.some((item) => item.id === id);
+      if (exists) {
+        return prev.map((item) => (item.id === id ? newProfile : item));
+      }
+      return [newProfile, ...prev];
+    });
     setCompanyProfileLabel("");
     setSelectedCompanyProfileId(id);
+    setShowCompanySaveModal(false);
   };
 
-  const handleDeleteCompanyProfile = () => {
-    if (!selectedCompanyProfileId) return;
+  const handleLoadCompanyProfile = (id: string) => {
+    setSelectedCompanyProfileId(id);
+    const profile = companyProfiles.find((item) => item.id === id);
+    if (profile) {
+      setForm((prev) => ({ ...prev, ...profile.data }));
+    }
+    setShowCompanyLoadModal(false);
+  };
+
+  const handleDeleteCompanyProfile = (id?: string) => {
+    const targetId = id ?? selectedCompanyProfileId;
+    if (!targetId) return;
     setCompanyProfiles((prev) =>
-      prev.filter((item) => item.id !== selectedCompanyProfileId)
+      prev.filter((item) => item.id !== targetId)
     );
-    setSelectedCompanyProfileId("");
-  };
-
-  const handleDeleteProfile = () => {
-    if (!selectedProfileId) return;
-    setProfiles((prev) => prev.filter((item) => item.id !== selectedProfileId));
-    setSelectedProfileId("");
+    if (selectedCompanyProfileId === targetId) {
+      setSelectedCompanyProfileId("");
+    }
   };
 
   const handleExportPdf = async () => {
@@ -448,8 +445,9 @@ export default function Home() {
           </p>
         </header>
 
-        <div className="grid gap-8 lg:grid-cols-[1.05fr_1fr]">
-          <section className="rounded-3xl border border-white/40 bg-white/80 p-6 shadow-[0_25px_60px_-45px_rgba(15,23,42,0.9)] backdrop-blur">
+        <div className="rounded-3xl border border-white/40 bg-white/40 p-4 shadow-[0_25px_60px_-45px_rgba(15,23,42,0.4)] backdrop-blur">
+          <div className="grid items-stretch gap-8 lg:grid-cols-[1.05fr_1fr]">
+            <section className="h-full rounded-3xl border border-white/40 bg-white/80 p-6 shadow-[0_25px_60px_-45px_rgba(15,23,42,0.9)] backdrop-blur">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold text-slate-900">입력 폼</h2>
               <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
@@ -459,7 +457,112 @@ export default function Home() {
 
             <div className="mt-6 grid gap-5">
               <div className="rounded-2xl border border-slate-100 bg-white/70 p-4">
-                <h3 className="text-sm font-semibold text-slate-700">근로자 정보</h3>
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="text-sm font-semibold text-slate-700">
+                    회사 정보
+                  </h3>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCompanyProfileLabel(getCompanyProfileLabel(form));
+                        setShowCompanySaveModal(true);
+                      }}
+                      className="rounded-full bg-slate-900 px-4 py-1 text-xs font-semibold text-white"
+                    >
+                      저장
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowCompanyLoadModal(true)}
+                      className="rounded-full border border-slate-200 px-4 py-1 text-xs font-semibold text-slate-600"
+                    >
+                      불러오기
+                    </button>
+                  </div>
+                </div>
+                <div className="mt-3 grid gap-4">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="grid gap-2">
+                      <label className="text-xs font-semibold text-slate-500">
+                        회사명
+                      </label>
+                      <input
+                        className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                        value={form.companyName}
+                        onChange={handleChange("companyName")}
+                        placeholder="상무스튜디오"
+                        required
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <label className="text-xs font-semibold text-slate-500">
+                        사업자 등록번호
+                      </label>
+                      <input
+                        className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                        value={form.companyRegNo}
+                        onChange={handleChange("companyRegNo")}
+                        placeholder="000-00-00000"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid gap-2">
+                    <label className="text-xs font-semibold text-slate-500">
+                      회사 주소
+                    </label>
+                    <input
+                      className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                      value={form.companyAddress}
+                      onChange={handleChange("companyAddress")}
+                      placeholder="서울특별시 ..."
+                    />
+                  </div>
+
+                  <div className="grid gap-2">
+                    <label className="text-xs font-semibold text-slate-500">
+                      담당자
+                    </label>
+                    <input
+                      className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                      value={form.companyManager}
+                      onChange={handleChange("companyManager")}
+                      placeholder="담당자 이름"
+                    />
+                  </div>
+
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-slate-100 bg-white/70 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="text-sm font-semibold text-slate-700">
+                    근로자 정보
+                  </h3>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setWorkerProfileLabel(
+                          getWorkerProfileLabel(form, today)
+                        );
+                        setShowWorkerSaveModal(true);
+                      }}
+                      className="rounded-full bg-slate-900 px-4 py-1 text-xs font-semibold text-white"
+                    >
+                      저장
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowWorkerLoadModal(true)}
+                      className="rounded-full border border-slate-200 px-4 py-1 text-xs font-semibold text-slate-600"
+                    >
+                      불러오기
+                    </button>
+                  </div>
+                </div>
                 <div className="mt-3 grid gap-4">
                   <div className="grid gap-2">
                     <label className="text-xs font-semibold text-slate-500">
@@ -516,207 +619,6 @@ export default function Home() {
                     </div>
                   </div>
 
-                  <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4">
-                    <h4 className="text-sm font-semibold text-slate-700">
-                      근로자 정보 저장
-                    </h4>
-                    <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]">
-                      <input
-                        className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
-                        value={workerProfileLabel}
-                        onChange={(event) =>
-                          setWorkerProfileLabel(event.target.value)
-                        }
-                        placeholder="저장 이름 (선택)"
-                      />
-                      <button
-                        type="button"
-                        onClick={handleSaveWorkerProfile}
-                        className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white"
-                      >
-                        저장
-                      </button>
-                    </div>
-                    <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto_auto]">
-                      <select
-                        value={selectedWorkerProfileId}
-                        onChange={handleSelectWorkerProfile}
-                        className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
-                      >
-                        <option value="">저장된 근로자 선택</option>
-                        {workerProfiles.map((profile) => (
-                          <option key={profile.id} value={profile.id}>
-                            {profile.label}
-                          </option>
-                        ))}
-                      </select>
-                      <button
-                        type="button"
-                        onClick={handleDeleteWorkerProfile}
-                        className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600"
-                      >
-                        삭제
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-slate-100 bg-white/70 p-4">
-                <h3 className="text-sm font-semibold text-slate-700">근로 기간</h3>
-                <div className="mt-3 grid gap-4">
-                  <div className="grid gap-2">
-                    <label className="text-xs font-semibold text-slate-500">
-                      근로 기간 유형
-                    </label>
-                    <div className="flex gap-2">
-                      {([
-                        { value: "date", label: "일자별" },
-                        { value: "month", label: "월별" },
-                      ] as const).map((option) => (
-                        <button
-                          key={option.value}
-                          type="button"
-                          onClick={() =>
-                            setForm((prev) => ({
-                              ...prev,
-                              workPeriodType: option.value,
-                            }))
-                          }
-                          className={`flex-1 rounded-xl border px-4 py-2 text-sm font-semibold transition ${
-                            form.workPeriodType === option.value
-                              ? "border-slate-900 bg-slate-900 text-white"
-                              : "border-slate-200 bg-white text-slate-600 hover:border-slate-400"
-                          }`}
-                        >
-                          {option.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="grid gap-2">
-                      <label className="text-xs font-semibold text-slate-500">
-                        근로 기간 시작
-                      </label>
-                      <input
-                        type={workPeriodInputType}
-                        className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
-                        value={form.workPeriodStart}
-                        onChange={handleChange("workPeriodStart")}
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <label className="text-xs font-semibold text-slate-500">
-                        근로 기간 종료
-                      </label>
-                      <input
-                        type={workPeriodInputType}
-                        className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
-                        value={form.workPeriodEnd}
-                        onChange={handleChange("workPeriodEnd")}
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-slate-100 bg-white/70 p-4">
-                <h3 className="text-sm font-semibold text-slate-700">회사 정보</h3>
-                <div className="mt-3 grid gap-4">
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="grid gap-2">
-                      <label className="text-xs font-semibold text-slate-500">
-                        회사명
-                      </label>
-                      <input
-                        className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
-                        value={form.companyName}
-                        onChange={handleChange("companyName")}
-                        placeholder="상무스튜디오"
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <label className="text-xs font-semibold text-slate-500">
-                        사업자 등록번호
-                      </label>
-                      <input
-                        className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
-                        value={form.companyRegNo}
-                        onChange={handleChange("companyRegNo")}
-                        placeholder="000-00-00000"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid gap-2">
-                    <label className="text-xs font-semibold text-slate-500">
-                      회사 주소
-                    </label>
-                    <input
-                      className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
-                      value={form.companyAddress}
-                      onChange={handleChange("companyAddress")}
-                      placeholder="서울특별시 ..."
-                    />
-                  </div>
-
-                  <div className="grid gap-2">
-                    <label className="text-xs font-semibold text-slate-500">
-                      담당자
-                    </label>
-                    <input
-                      className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
-                      value={form.companyManager}
-                      onChange={handleChange("companyManager")}
-                      placeholder="담당자 이름"
-                    />
-                  </div>
-
-                  <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4">
-                    <h4 className="text-sm font-semibold text-slate-700">
-                      회사 정보 저장
-                    </h4>
-                    <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]">
-                      <input
-                        className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
-                        value={companyProfileLabel}
-                        onChange={(event) =>
-                          setCompanyProfileLabel(event.target.value)
-                        }
-                        placeholder="저장 이름 (선택)"
-                      />
-                      <button
-                        type="button"
-                        onClick={handleSaveCompanyProfile}
-                        className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white"
-                      >
-                        저장
-                      </button>
-                    </div>
-                    <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto_auto]">
-                      <select
-                        value={selectedCompanyProfileId}
-                        onChange={handleSelectCompanyProfile}
-                        className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
-                      >
-                        <option value="">저장된 회사 선택</option>
-                        {companyProfiles.map((profile) => (
-                          <option key={profile.id} value={profile.id}>
-                            {profile.label}
-                          </option>
-                        ))}
-                      </select>
-                      <button
-                        type="button"
-                        onClick={handleDeleteCompanyProfile}
-                        className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600"
-                      >
-                        삭제
-                      </button>
-                    </div>
-                  </div>
                 </div>
               </div>
 
@@ -848,6 +750,66 @@ export default function Home() {
               </div>
 
               <div className="rounded-2xl border border-slate-100 bg-white/70 p-4">
+                <h3 className="text-sm font-semibold text-slate-700">근로 기간</h3>
+                <div className="mt-3 grid gap-4">
+                  <div className="grid gap-2">
+                    <label className="text-xs font-semibold text-slate-500">
+                      근로 기간 유형
+                    </label>
+                    <div className="flex gap-2">
+                      {([
+                        { value: "date", label: "일자별" },
+                        { value: "month", label: "월별" },
+                      ] as const).map((option) => (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() =>
+                            setForm((prev) => ({
+                              ...prev,
+                              workPeriodType: option.value,
+                            }))
+                          }
+                          className={`flex-1 rounded-xl border px-4 py-2 text-sm font-semibold transition ${
+                            form.workPeriodType === option.value
+                              ? "border-slate-900 bg-slate-900 text-white"
+                              : "border-slate-200 bg-white text-slate-600 hover:border-slate-400"
+                          }`}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="grid gap-2">
+                      <label className="text-xs font-semibold text-slate-500">
+                        근로 기간 시작
+                      </label>
+                      <input
+                        type={workPeriodInputType}
+                        className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                        value={form.workPeriodStart}
+                        onChange={handleChange("workPeriodStart")}
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <label className="text-xs font-semibold text-slate-500">
+                        근로 기간 종료
+                      </label>
+                      <input
+                        type={workPeriodInputType}
+                        className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                        value={form.workPeriodEnd}
+                        onChange={handleChange("workPeriodEnd")}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-slate-100 bg-white/70 p-4">
                 <h3 className="text-sm font-semibold text-slate-700">세금 정보</h3>
                 <div className="mt-3 grid gap-2">
                   <label className="text-xs font-semibold text-slate-500">
@@ -876,69 +838,31 @@ export default function Home() {
                 />
               </div>
 
-              <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4">
-                <h3 className="text-sm font-semibold text-slate-700">
-                  전체 입력 저장
-                </h3>
-                <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]">
-                  <input
-                    className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
-                    value={profileLabel}
-                    onChange={(event) => setProfileLabel(event.target.value)}
-                    placeholder="저장 이름 (선택)"
-                  />
+            </div>
+            </section>
+
+            <section className="flex h-full flex-col">
+              <div className="flex h-full flex-col gap-4 rounded-3xl border border-white/40 bg-white/80 p-6 shadow-[0_25px_60px_-45px_rgba(15,23,42,0.9)] backdrop-blur">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-lg font-semibold text-slate-900">
+                    미리보기
+                  </h2>
                   <button
                     type="button"
-                    onClick={handleSaveProfile}
-                    className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white"
+                    onClick={handleExportPdf}
+                    disabled={isExporting}
+                    className="rounded-full bg-emerald-500 px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-emerald-500/30 transition hover:bg-emerald-600 disabled:cursor-not-allowed disabled:bg-emerald-300"
                   >
-                    저장
+                    {isExporting ? "PDF 생성 중..." : "PDF 다운로드"}
                   </button>
                 </div>
-                <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto_auto]">
-                  <select
-                    value={selectedProfileId}
-                    onChange={handleSelectProfile}
-                    className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
-                  >
-                    <option value="">저장된 근로자 선택</option>
-                    {profiles.map((profile) => (
-                      <option key={profile.id} value={profile.id}>
-                        {profile.label}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    type="button"
-                    onClick={handleDeleteProfile}
-                    className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600"
-                  >
-                    삭제
-                  </button>
-                </div>
-              </div>
-            </div>
-          </section>
 
-          <section className="flex flex-col gap-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-slate-900">미리보기</h2>
-              <button
-                type="button"
-                onClick={handleExportPdf}
-                disabled={isExporting}
-                className="rounded-full bg-emerald-500 px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-emerald-500/30 transition hover:bg-emerald-600 disabled:cursor-not-allowed disabled:bg-emerald-300"
-              >
-                {isExporting ? "PDF 생성 중..." : "PDF 다운로드"}
-              </button>
-            </div>
-
-            <div className="overflow-hidden rounded-3xl border border-white/50 bg-white/80 p-4 shadow-[0_25px_60px_-45px_rgba(15,23,42,0.8)] backdrop-blur">
-              <div
-                ref={previewRef}
-                className="mx-auto w-full rounded-2xl bg-white p-6 text-[13px] text-slate-900 shadow-[inset_0_0_0_1px_rgba(15,23,42,0.08)] sm:text-sm"
-                style={{ maxWidth: "210mm", minHeight: "297mm" }}
-              >
+                <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white p-4">
+                  <div
+                    ref={previewRef}
+                    className="mx-auto w-full rounded-2xl bg-white p-6 text-[13px] text-slate-900 shadow-[inset_0_0_0_1px_rgba(15,23,42,0.08)] sm:text-sm"
+                    style={{ maxWidth: "210mm", minHeight: "297mm" }}
+                  >
                 <div className="flex items-start justify-between gap-4 border-b border-slate-200 pb-4">
                   <div>
                     <p className="text-xs font-semibold text-slate-500">급여명세서</p>
@@ -1061,11 +985,231 @@ export default function Home() {
                     <p className="mt-2 text-[11px] text-slate-500">메모: {form.memo}</p>
                   )}
                 </div>
+                  </div>
+                </div>
               </div>
-            </div>
-          </section>
+            </section>
+          </div>
         </div>
       </div>
+      {showCompanyLoadModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div
+            className="absolute inset-0 bg-slate-900/40"
+            onClick={() => setShowCompanyLoadModal(false)}
+          />
+          <div className="relative w-full max-w-lg rounded-2xl bg-white p-5 shadow-2xl">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-slate-900">
+                회사 정보 불러오기
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowCompanyLoadModal(false)}
+                className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600"
+              >
+                닫기
+              </button>
+            </div>
+
+            {companyProfiles.length === 0 ? (
+              <p className="mt-4 rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
+                저장된 회사 정보가 없습니다.
+              </p>
+            ) : (
+              <div className="mt-4 grid gap-3">
+                {companyProfiles.map((profile) => (
+                  <div
+                    key={profile.id}
+                    className="flex items-center justify-between rounded-xl border border-slate-200 p-3"
+                  >
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">
+                        {profile.label}
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        사업자등록번호: {profile.data.companyRegNo || "-"}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleLoadCompanyProfile(profile.id)}
+                        className="rounded-full bg-slate-900 px-4 py-1 text-xs font-semibold text-white"
+                      >
+                        불러오기
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteCompanyProfile(profile.id)}
+                        className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600"
+                      >
+                        삭제
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+      {showCompanySaveModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div
+            className="absolute inset-0 bg-slate-900/40"
+            onClick={() => setShowCompanySaveModal(false)}
+          />
+          <div className="relative w-full max-w-lg rounded-2xl bg-white p-5 shadow-2xl">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-slate-900">
+                회사 정보 저장
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowCompanySaveModal(false)}
+                className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600"
+              >
+                닫기
+              </button>
+            </div>
+
+            <div className="mt-4 grid gap-3">
+              <label className="text-xs font-semibold text-slate-500">
+                저장 이름
+              </label>
+              <input
+                className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                value={companyProfileLabel}
+                onChange={(event) =>
+                  setCompanyProfileLabel(event.target.value)
+                }
+                placeholder={getCompanyProfileLabel(form)}
+              />
+              <p className="text-[11px] text-slate-500">
+                비워두면 회사명이 기본값입니다.
+              </p>
+              <div className="mt-2 flex justify-end">
+                <button
+                  type="button"
+                  onClick={handleSaveCompanyProfile}
+                  className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white"
+                >
+                  저장
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {showWorkerSaveModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div
+            className="absolute inset-0 bg-slate-900/40"
+            onClick={() => setShowWorkerSaveModal(false)}
+          />
+          <div className="relative w-full max-w-lg rounded-2xl bg-white p-5 shadow-2xl">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-slate-900">
+                근로자 정보 저장
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowWorkerSaveModal(false)}
+                className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600"
+              >
+                닫기
+              </button>
+            </div>
+
+            <div className="mt-4 grid gap-3">
+              <label className="text-xs font-semibold text-slate-500">
+                저장 이름
+              </label>
+              <input
+                className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                value={workerProfileLabel}
+                onChange={(event) => setWorkerProfileLabel(event.target.value)}
+                placeholder={getWorkerProfileLabel(form, today)}
+              />
+              <p className="text-[11px] text-slate-500">
+                비워두면 기본값으로 저장됩니다.
+              </p>
+              <div className="mt-2 flex justify-end">
+                <button
+                  type="button"
+                  onClick={handleSaveWorkerProfile}
+                  className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white"
+                >
+                  저장
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {showWorkerLoadModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div
+            className="absolute inset-0 bg-slate-900/40"
+            onClick={() => setShowWorkerLoadModal(false)}
+          />
+          <div className="relative w-full max-w-lg rounded-2xl bg-white p-5 shadow-2xl">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-slate-900">
+                근로자 정보 불러오기
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowWorkerLoadModal(false)}
+                className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600"
+              >
+                닫기
+              </button>
+            </div>
+
+            {workerProfiles.length === 0 ? (
+              <p className="mt-4 rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
+                저장된 근로자 정보가 없습니다.
+              </p>
+            ) : (
+              <div className="mt-4 grid gap-3">
+                {workerProfiles.map((profile) => (
+                  <div
+                    key={profile.id}
+                    className="flex items-center justify-between rounded-xl border border-slate-200 p-3"
+                  >
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">
+                        {profile.label}
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        지급일: {profile.data.payDate || "-"}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleLoadWorkerProfile(profile.id)}
+                        className="rounded-full bg-slate-900 px-4 py-1 text-xs font-semibold text-white"
+                      >
+                        불러오기
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteWorkerProfile(profile.id)}
+                        className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600"
+                      >
+                        삭제
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
