@@ -1,0 +1,108 @@
+export const pdfStyles = {
+  page: {
+    width: "210mm",
+    height: "297mm",
+    padding: "14mm",
+    backgroundColor: "#ffffff",
+    color: "#0f172a",
+    fontFamily:
+      '"Pretendard","Noto Sans KR","Malgun Gothic","Apple SD Gothic Neo",sans-serif',
+    fontSize: "11px",
+    lineHeight: 1.5,
+    boxSizing: "border-box",
+  },
+  header: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: "8mm",
+    borderBottom: "1px solid #e2e8f0",
+    paddingBottom: "7mm",
+  },
+  title: {
+    fontSize: "18px",
+    fontWeight: 700,
+  },
+  subtitle: {
+    fontSize: "11px",
+    color: "#64748b",
+  },
+  label: {
+    fontSize: "10px",
+    color: "#64748b",
+  },
+  gridThree: {
+    display: "grid",
+    gridTemplateColumns: "1fr",
+    gap: "3mm",
+    marginTop: "6mm",
+  },
+  card: {
+    border: "1px solid #e2e8f0",
+    borderRadius: "8px",
+    padding: "4mm",
+    backgroundColor: "#f8fafc",
+  },
+  cardTitle: {
+    fontSize: "10px",
+    fontWeight: 600,
+    color: "#64748b",
+  },
+  cardValue: {
+    fontSize: "12px",
+    fontWeight: 600,
+    marginTop: "2mm",
+  },
+  gridTwo: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gap: "6mm",
+    marginTop: "6mm",
+    alignItems: "stretch",
+  },
+  sectionTitle: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "baseline",
+    borderBottom: "1px solid #e2e8f0",
+    paddingBottom: "2mm",
+    marginBottom: "3mm",
+    fontWeight: 600,
+  },
+  row: {
+    display: "flex",
+    justifyContent: "space-between",
+    padding: "2mm 0",
+    borderBottom: "1px dashed #e2e8f0",
+  },
+  totalRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    padding: "2.5mm 3mm",
+    marginTop: "2mm",
+    borderRadius: "6px",
+    backgroundColor: "#0f172a",
+    color: "#ffffff",
+    fontWeight: 600,
+  },
+  totalRowAuto: {
+    marginTop: "auto",
+  },
+  totalRowDeduction: {
+    backgroundColor: "#e11d48",
+  },
+  summary: {
+    marginTop: "6mm",
+    padding: "4mm",
+    border: "1px solid #e2e8f0",
+    borderRadius: "8px",
+    backgroundColor: "#f8fafc",
+  },
+  memo: {
+    marginTop: "2mm",
+    maxHeight: "18mm",
+    overflow: "hidden",
+    whiteSpace: "pre-wrap" as const,
+    wordBreak: "break-word" as const,
+  },
+} as const;
