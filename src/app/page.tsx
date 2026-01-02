@@ -182,6 +182,7 @@ const pdfStyles = {
     gridTemplateColumns: "1fr 1fr",
     gap: "6mm",
     marginTop: "6mm",
+    alignItems: "stretch",
   },
   sectionTitle: {
     display: "flex",
@@ -207,6 +208,9 @@ const pdfStyles = {
     backgroundColor: "#0f172a",
     color: "#ffffff",
     fontWeight: 600,
+  },
+  totalRowAuto: {
+    marginTop: "auto",
   },
   totalRowDeduction: {
     backgroundColor: "#e11d48",
@@ -981,7 +985,7 @@ export default function Home() {
                       {form.workPeriodEnd || "-"}
                     </p>
                   </div>
-                  <div className="rounded-xl border border-slate-100 bg-white p-3 shadow-sm">
+                  <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
                     <p className="text-xs font-semibold text-slate-500">지급 정보</p>
                     <p className="mt-1 text-sm font-semibold text-slate-900">
                       {form.bankName || "-"}
@@ -1007,13 +1011,13 @@ export default function Home() {
                   </div>
                 </div>
 
-                <div className="mt-6 grid gap-6 sm:grid-cols-2">
-                  <div>
+                <div className="mt-6 grid items-stretch gap-6 sm:grid-cols-2">
+                  <div className="flex h-full flex-col">
                     <div className="flex items-center justify-between border-b border-slate-200 pb-2">
                       <h4 className="text-sm font-semibold">지급 항목</h4>
                       <span className="text-xs text-slate-500">합계</span>
                     </div>
-                    <div className="mt-3 grid gap-2">
+                    <div className="mt-3 flex flex-1 flex-col gap-2">
                       {payItems.map((item) => (
                         <div
                           key={item.label}
@@ -1025,7 +1029,7 @@ export default function Home() {
                           </span>
                         </div>
                       ))}
-                      <div className="flex items-center justify-between rounded-lg bg-slate-900 px-3 py-2 text-white">
+                      <div className="mt-auto flex items-center justify-between rounded-lg bg-slate-900 px-3 py-2 text-white">
                         <span className="text-xs font-semibold">총지급</span>
                         <span className="text-xs font-semibold">
                           {formatCurrency(calculations.gross)}원
@@ -1033,14 +1037,14 @@ export default function Home() {
                       </div>
                     </div>
                   </div>
-                  <div>
+                  <div className="flex h-full flex-col">
                     <div className="flex items-center justify-between border-b border-slate-200 pb-2">
                       <h4 className="text-sm font-semibold">공제 항목</h4>
                       <span className="text-xs text-slate-500">
                         과세: {formatCurrency(calculations.taxable)}원
                       </span>
                     </div>
-                    <div className="mt-3 grid gap-2">
+                    <div className="mt-3 flex flex-1 flex-col gap-2">
                       {calculations.deductionLabels.map((item) => (
                         <div
                           key={item.key}
@@ -1052,7 +1056,7 @@ export default function Home() {
                           </span>
                         </div>
                       ))}
-                      <div className="flex items-center justify-between rounded-lg bg-rose-500 px-3 py-2 text-white">
+                      <div className="mt-auto flex items-center justify-between rounded-lg bg-rose-500 px-3 py-2 text-white">
                         <span className="text-xs font-semibold">총공제</span>
                         <span className="text-xs font-semibold">
                           {formatCurrency(calculations.totalDeductions)}원
@@ -1126,7 +1130,7 @@ export default function Home() {
           </div>
 
           <div style={pdfStyles.gridTwo}>
-            <div>
+            <div style={{ display: "flex", flexDirection: "column" }}>
               <div style={pdfStyles.sectionTitle}>
                 <span>지급 항목</span>
                 <span>합계</span>
@@ -1137,13 +1141,13 @@ export default function Home() {
                   <span>{formatCurrency(item.value)}원</span>
                 </div>
               ))}
-              <div style={pdfStyles.totalRow}>
+              <div style={{ ...pdfStyles.totalRow, ...pdfStyles.totalRowAuto }}>
                 <span>총지급</span>
                 <span>{formatCurrency(calculations.gross)}원</span>
               </div>
             </div>
 
-            <div>
+            <div style={{ display: "flex", flexDirection: "column" }}>
               <div style={pdfStyles.sectionTitle}>
                 <span>공제 항목</span>
                 <span>과세 {formatCurrency(calculations.taxable)}원</span>
@@ -1154,7 +1158,13 @@ export default function Home() {
                   <span>{formatCurrency(calculations.deductions[item.key])}원</span>
                 </div>
               ))}
-              <div style={{ ...pdfStyles.totalRow, ...pdfStyles.totalRowDeduction }}>
+              <div
+                style={{
+                  ...pdfStyles.totalRow,
+                  ...pdfStyles.totalRowDeduction,
+                  ...pdfStyles.totalRowAuto,
+                }}
+              >
                 <span>총공제</span>
                 <span>{formatCurrency(calculations.totalDeductions)}원</span>
               </div>
